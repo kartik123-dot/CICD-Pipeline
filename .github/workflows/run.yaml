@@ -1,42 +1,3 @@
-
-name: Model Training CICD
-
-permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  run:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libcairo2-dev \
-            libjpeg-dev \
-            libpango1.0-dev \
-            libgif-dev \
-            librsvg2-dev
-
-      - name: Set up CML
-        uses: iterative/setup-cml@v2
-
       - name: Train model and generate report
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,17 +7,23 @@ jobs:
 
           python train_model.py
 
-          echo "## Random Forest and Logistic Regression Model Scores" > report.md
+          echo "# Model Training Report" > report.md
+
+          echo "## Random Forest and Logistic Regression Scores" >> report.md
           cat scores.txt >> report.md
 
-          echo "## Confusion Matrix and Feature Importance" >> report.md
           echo "" >> report.md
-          echo "### Confusion Matrix" >> report.md
+          echo "## Confusion Matrix" >> report.md
           echo "" >> report.md
           echo "![Confusion Matrix](./ConfusionMatrix.png)" >> report.md
+
           echo "" >> report.md
-          echo "### Feature Importance" >> report.md
+          echo "## Feature Importance" >> report.md
           echo "" >> report.md
           echo "![Feature Importance](./FeatureImportance.png)" >> report.md
 
-          cml comment create report.md
+          echo "Checking generated files..."
+          ls -lh scores.txt ConfusionMatrix.png FeatureImportance.png
+
+          echo "Publishing CML report..."
+          cml comment create --publish report.md
