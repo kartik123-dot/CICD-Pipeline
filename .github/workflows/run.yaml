@@ -1,22 +1,29 @@
 name: Model Training CICD
 
-permissions:
-  id-token: write
-  contents: write
 on:
   push:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: '3.11'
 
+      # Install system dependencies
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -27,21 +34,53 @@ jobs:
             libgif-dev \
             librsvg2-dev
 
-      - uses: iterative/setup-cml@v2
+      # Set up CML
+      - name: Set up CML
+        uses: iterative/setup-cml@v2
 
+      # Train model
       - name: Train model
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+
           python train_model.py
 
-          echo "RF and LR Model Score" > report.md
-          cat scores.txt >> report.md
+      # Verify generated files
+      - name: Verify model outputs
+        run: |
+          test -f scores.txt
+          test -f ConfusionMatrix.png
+          test -f FeatureImportance.png
 
-          echo "Confusion Matrix & Feature Importance" > report1.md
-          echo '|[](./ConfusionMatrix.png "ConfusionMatrix")' >> report1.md
-          echo '|[](./FeatureImportance.png "FeatureImportance")' >> report1.md
+          echo "All model output files exist."
 
-          cat report.md report1.md > combined_file.md
-          cml comment create combined_file.md
+      # Generate report
+      - name: Generate report
+        run: |
+          {
+            echo "# Model Training Report"
+            echo ""
+            echo "## Random Forest and Logistic Regression Scores"
+            echo ""
+            cat scores.txt
+            echo ""
+            echo "## Confusion Matrix"
+            echo ""
+            echo "![Confusion Matrix](./ConfusionMatrix.png)"
+            echo ""
+            echo "## Feature Importance"
+            echo ""
+            echo "![Feature Importance](./FeatureImportance.png)"
+          } > report.md
+
+          cat report.md
+
+      # Publish report
+      - name: Publish CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cml comment create --publish report.md
